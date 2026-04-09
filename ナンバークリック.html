@@ -1,0 +1,469 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NC Evolution - Professional Edition</title>
+    <style>
+        body { background: #2c3e50; color: white; font-family: sans-serif; display: flex; justify-content: center; padding: 10px; margin: 0; overflow-y: auto; min-height: 100vh; }
+        #app { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 20px; background: #34495e; padding: 20px; border-radius: 8px; border: 2px solid #5d6d7e; width: 100%; max-width: 850px; box-sizing: border-box; margin: auto; }
+        .main-panel { position: relative; width: 100%; }
+        .grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 5px; margin: 15px 0; }
+        .cell { height: 50px; background: #ecf0f1; border: none; font-weight: bold; cursor: pointer; color: #2c3e50; font-size: 1.2rem; position: relative; border-radius: 4px; }
+        .cell.hidden { background: #5d6d7e !important; color: #5d6d7e !important; cursor: default; }
+        .cell.is-bonus-tile { border: 2px solid #f1c40f; box-shadow: inset 0 0 5px #f1c40f; }
+        .cell.is-bonus-tile::before { content: "★"; position: absolute; top: 1px; left: 2px; font-size: 0.6rem; color: #f1c40f; opacity: 0.5; }
+        .cell.is-bonus-tile:not(.hidden) { background: #f1c40f; color: #2c3e50; }
+
+        .overlay { position: absolute; top: 20px; left: 0; width: 100%; min-height: 400px; background: rgba(44, 62, 80, 0.98); border-radius: 8px; display: none; flex-direction: column; justify-content: center; align-items: center; z-index: 100; border: 3px solid #f1c40f; padding: 20px; box-sizing: border-box; }
+        .res-content { width: 100%; font-size: 0.85rem; line-height: 1.5; }
+        .res-title { color: #f1c40f; font-weight: bold; border-bottom: 1px solid #5d6d7e; margin: 8px 0 4px; }
+        .res-line { display: flex; justify-content: space-between; }
+        .res-total { font-size: 1.2rem; color: #f1c40f; margin: 10px 0; text-align: center; font-weight: bold; }
+        
+        #start-btn { width: 100%; padding: 15px; background: #3498db; color: white; border: none; cursor: pointer; font-weight: bold; border-radius: 4px; font-size: 1rem; }
+        #start-btn:disabled { background: #7f8c8d; cursor: not-allowed; }
+        
+        .skill-container { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 15px; }
+        .skill-btn-wrapper { position: relative; display: flex; }
+        .skill-btn { flex-grow: 1; padding: 8px; background: #2c3e50; border: 1px solid #5d6d7e; color: white; cursor: pointer; text-align: left; min-height: 60px; font-size: 0.75rem; border-radius: 4px 0 0 4px; transition: 0.2s; }
+        .skill-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+        .max-buy-btn { width: 45px; background: #e74c3c; border: 1px solid #c0392b; color: white; font-weight: bold; cursor: pointer; font-size: 0.65rem; border-radius: 0 4px 4px 0; writing-mode: vertical-lr; text-align: center; }
+        .max-buy-btn:disabled { background: #95a5a6; opacity: 0.4; cursor: not-allowed; }
+        
+        .special-btn { display: none; margin-top: 5px; width: 100%; font-weight: bold; border-radius: 4px; cursor: pointer; padding: 10px; }
+        .ascension-btn { background: #9b59b6; border: 2px solid #8e44ad; color: white; }
+        .ticket-btn { background: #e74c3c; border: 2px solid #c0392b; color: white; }
+        .perm-btn { background: #f1c40f; border: 2px solid #d35400; color: #2c3e50; }
+
+        #sugoroku-container { display: grid; grid-template-columns: repeat(5, 42px); grid-template-rows: repeat(4, 42px); gap: 3px; justify-content: center; margin: 10px auto; position: relative; }
+        .sq { border: 1px solid #7f8c8d; display: flex; align-items: center; justify-content: center; font-size: 0.75rem; width: 42px; height: 42px; box-sizing: border-box; }
+        .sq.active { background: #f1c40f; color: #2c3e50; box-shadow: 0 0 10px #f1c40f; z-index: 2; }
+        .sq.event { background: #e67e22; color: white; font-weight: bold; }
+        #central-status { grid-column: 2 / 5; grid-row: 2 / 4; display: flex; flex-direction: column; justify-content: center; align-items: center; font-size: 0.75rem; color: #f1c40f; background: rgba(44, 62, 80, 0.6); border-radius: 4px; }
+        
+        .save-area { grid-column: 1 / -1; margin-top: 20px; padding: 10px; background: #2c3e50; border-radius: 4px; font-size: 0.8rem; border-top: 1px solid #5d6d7e; }
+        input[type="text"] { background: #34495e; border: 1px solid #5d6d7e; color: white; padding: 5px; width: 180px; border-radius: 3px; }
+        .help-icon { cursor: pointer; background: #7f8c8d; border-radius: 50%; width: 24px; height: 24px; display: inline-flex; align-items: center; justify-content: center; font-weight: bold; margin-left: 8px; font-size: 0.9rem; }
+    </style>
+</head>
+<body>
+
+<div id="app">
+    <div class="main-panel">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+            <h2 style="margin:0;">NC Evolution <span class="help-icon" onclick="showHelp()">?</span></h2>
+            <span id="asc-count-display" style="color:#9b59b6; font-weight:bold;">Rank: 0</span>
+        </div>
+        <div style="background:#2c3e50; padding:10px; border-radius:4px; display:flex; justify-content:space-between; font-weight:bold; margin: 10px 0;">
+            <span>G: <span id="coins">0</span></span>
+            <span>⏱: <span id="timer">5.0</span>s</span>
+        </div>
+
+        <div id="result-overlay" class="overlay">
+            <div id="miss-msg" style="color:#e74c3c; font-size:0.8rem; display:none;">⚠️ お手付き：報酬半減</div>
+            <div id="ticket-msg" style="color:#27ae60; font-size:0.8rem; display:none;">🎫 ペナルティ無効発動</div>
+            <div class="res-content">
+                <div class="res-title" id="overlay-title">Notification</div>
+                <div id="overlay-body"></div>
+            </div>
+            <button onclick="hideResult()" style="padding:10px 30px; background:#f1c40f; border:none; cursor:pointer; font-weight:bold; border-radius:4px;">閉じる</button>
+        </div>
+
+        <div id="ascension-overlay" class="overlay">
+            <h2 style="color:#9b59b6;">ASCENSION</h2>
+            <div style="font-size:0.8rem; line-height:1.6; background:#1a252f; padding:15px; border-radius:4px; margin-bottom:15px; width:100%;">
+                <b style="color:#27ae60;">【引き継ぐ】</b>Rank, ★単価報酬, イベ単価報酬, 各種強化, 永久券, 総消費G<br>
+                <b style="color:#e74c3c;">【失う】</b>所持金, <b style="color:#f39c12;">イベマス/★パネル配置</b>, 最大数値(5へ)<br>
+                <b>費用: <span id="asc-cost-display">0</span> G</b>
+            </div>
+            <p>転生を実行しますか？</p>
+            <div style="display:flex; gap:10px;">
+                <button onclick="doAscension()" class="ascension-btn" style="padding:10px 30px;">はい</button>
+                <button onclick="document.getElementById('ascension-overlay').style.display='none'" style="padding:10px 20px; background:#7f8c8d; border:none; color:white; border-radius:4px; cursor:pointer;">いいえ</button>
+            </div>
+        </div>
+
+        <div id="clear-overlay" class="overlay">
+            <h1 style="color:#f1c40f;">COMPLETE!</h1>
+            <div style="text-align:center; font-size:0.9rem; line-height:1.8;">
+                全ての盤面を制覇しました！<br>
+                クリアタイム: <b id="clear-time-display">0</b><br>
+                総消費金額: <b id="clear-total-spent">0</b> G
+            </div>
+            <button onclick="location.reload()" style="margin-top:20px; background:#f1c40f; color:#2c3e50; border:none; padding:10px 20px; font-weight:bold; cursor:pointer; border-radius:4px;">最初から遊ぶ</button>
+        </div>
+
+        <div class="grid" id="grid"></div>
+        <button id="start-btn" onclick="startGame()">ゲーム開始</button>
+    </div>
+
+    <div>
+        <div class="skill-container">
+            <div class="skill-btn-wrapper">
+                <button class="skill-btn" id="btn-max" onclick="upgrade('max', false)">最大数値:<span id="max-val">5</span><br>[<span id="cost-max">10</span>G]</button>
+                <button class="max-buy-btn" id="max-btn-max" onclick="upgrade('max', true)">MAX</button>
+            </div>
+            <div class="skill-btn-wrapper">
+                <button class="skill-btn" id="btn-time" onclick="upgrade('time', false)">制限時間:<span id="time-val">5</span>s<br>[<span id="cost-time">15</span>G]</button>
+                <button class="max-buy-btn" id="max-btn-time" onclick="upgrade('time', true)">MAX</button>
+            </div>
+            <div class="skill-btn-wrapper">
+                <button class="skill-btn" id="btn-mult" onclick="upgrade('mult', false)">報酬倍率:<span id="mult-val">1</span>倍<br>[<span id="cost-mult">20</span>G]</button>
+                <button class="max-buy-btn" id="max-btn-mult" onclick="upgrade('mult', true)">MAX</button>
+            </div>
+            <div class="skill-btn-wrapper">
+                <button class="skill-btn" id="btn-nc-bonus" onclick="upgradeNCBonus(false)">★パネル:<span id="nc-bonus-count">0</span>/25枚<br>単価報酬:<span id="nc-bonus-val">50</span>G [<span id="cost-nc-bonus">300</span>G]</button>
+                <button class="max-buy-btn" id="max-btn-nc-bonus" onclick="upgradeNCBonus(true)">MAX</button>
+            </div>
+            <div class="skill-btn-wrapper">
+                <button class="skill-btn" id="btn-clear-bonus" onclick="upgrade('clearBonus', false)">完走報酬:<span id="clear-bonus-val">10</span>G<br>[<span id="cost-clear-bonus">150</span>G]</button>
+                <button class="max-buy-btn" id="max-btn-clear-bonus" onclick="upgrade('clearBonus', true)">MAX</button>
+            </div>
+            <div class="skill-btn-wrapper">
+                <button class="skill-btn" id="btn-event" onclick="upgradeEvent(false)">イベマス:<span id="event-count">0</span>/14<br>単価報酬:<span id="event-val">100</span>G [<span id="cost-event">100</span>G]</button>
+                <button class="max-buy-btn" id="max-btn-event" onclick="upgradeEvent(true)">MAX</button>
+            </div>
+            <div class="skill-btn-wrapper">
+                <button class="skill-btn" id="btn-lap" onclick="upgrade('lap', false)">周回報酬:<span id="lap-val">200</span><br>[<span id="cost-lap">500</span>G]</button>
+                <button class="max-buy-btn" id="max-btn-lap" onclick="upgrade('lap', true)">MAX</button>
+            </div>
+            
+            <div style="display:flex; flex-direction:column; gap:5px;">
+                <button class="special-btn ticket-btn" id="btn-ticket" onclick="buyTicket()">🎫無効券: <span id="ticket-count">0</span>枚<br>[10,000G]</button>
+                <button class="special-btn perm-btn" id="btn-perm" onclick="buyPermTicket()">💎永久無効化 [2,000,000G]</button>
+                <button class="special-btn ascension-btn" id="btn-asc-trigger" onclick="showAscension()">✨転生可能!</button>
+            </div>
+        </div>
+        <div id="sugoroku-container">
+            <div id="central-status"><div id="status">0枚完成</div><div style="opacity:0.7; margin-top:4px;">Pos: <span id="pos-display">0</span></div></div>
+        </div>
+    </div>
+
+    <div class="save-area">
+        <span>セーブ: </span><input type="text" id="save-code" readonly onclick="this.select()">
+        <button onclick="generateSaveCode()">生成</button>
+        <div style="margin-top:5px;">
+            <input type="text" id="load-input" placeholder="コードを貼付"><button onclick="loadSaveCode()">ロード</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    let stats = { ncTotalG:0, ncBonusG:0, sgTotalG:0 };
+    let state = { 
+        coins:0, ascCount:0, hasPermTicket:false, totalSpent:0,
+        tempBaseCount:0, next:1, max:5, time:5, mult:1, 
+        lapBonus:200, clearBonusBase:10, ncBonusBase:50, eventBaseG:100,
+        timer:null, pos:0, gameActive:false, events:[], 
+        fixedBonusIndices:[], startTime: Date.now(),
+        isMissed: false, tickets:0, unlockedByAsc: false 
+    };
+    
+    const outerPathCoords = [[0,0],[1,0],[2,0],[3,0],[4,0],[4,1],[4,2],[4,3],[3,3],[2,3],[1,3],[0,3],[0,2],[0,1]];
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+    function playSound(freq, dur, type = 'sine') {
+        try { if (audioCtx.state === 'suspended') audioCtx.resume();
+            const osc = audioCtx.createOscillator(); const gain = audioCtx.createGain();
+            osc.type = type; osc.connect(gain); gain.connect(audioCtx.destination);
+            osc.frequency.value = freq; gain.gain.setValueAtTime(0.05, audioCtx.currentTime);
+            osc.start(); osc.stop(audioCtx.currentTime + dur);
+        } catch (e) {}
+    }
+
+    function showHelp() {
+        showPopup("【ナンバークリッカー説明書】", `
+            <div style="text-align:left; font-size:0.8rem; overflow-y:auto; max-height:300px;">
+                <b>■ 基本ルール</b><br>
+                数字をミスなく順番に押して行くゲームです。制限時間内に完走して報酬を稼ぎましょう 。<br><br>
+                
+                <b>■ クリア条件</b><br>
+                1. 最大数値が <b>25</b><br>
+                2. ★パネルが <b>25枚</b><br>
+                3. イベマスが <b>14箇所</b><br>
+                全て揃った状態で完走するとゲームクリアです。<br><br>
+
+                <b>■ 購入・強化できるもの</b> <br>
+                ・<b>最大数値</b>：盤面の数字の最大値がアップ<br>
+                ・<b>制限時間</b>：最大31秒まで延長可能<br>
+                ・<b>報酬倍率</b>：成功時の獲得Gに倍率がかかる<br>
+                ・<b>★パネル</b>：盤面のパネルに色が付き<br>
+　　　　　　色付きマスをクリックする毎に報酬が入る<br>
+　　　　　　25枚以上買うと報酬があがる<br>
+                ・<b>完走報酬</b>：最大数値到達時のボーナス<br>
+                ・<b>イベマス</b>：すごろくのマス報酬。<br>
+　　　　　　14枚以上買うと報酬が上がる<br>
+                ・<b>周回報酬</b>：すごろくを1周した時の報酬<br>
+                ・<b>無効券</b>　：お手付きしても報酬が減らない消耗品<br><br>
+
+                <b>■ セーブ／ロード</b> <br>
+                下部の「生成」ボタンでパスワードを発行し、保存・復元が可能です。<br><br>
+
+                <b style="color:#9b59b6;">■ 転生（Rank UP）</b><br>
+                Rankが上がると報酬にボーナスが加算されますが、所持金や一部の数値がリセットされます。
+            </div>
+        `);
+    }
+
+    function showPopup(title, bodyHtml) {
+        document.getElementById('overlay-title').textContent = title;
+        document.getElementById('overlay-body').innerHTML = bodyHtml;
+        document.getElementById('result-overlay').style.display = 'flex';
+    }
+
+    function getCost(type) {
+        if(type === 'max') return Math.floor(10 * Math.pow(2.2, state.max - 5));
+        if(type === 'time') return Math.floor(15 * Math.pow(1.8, (state.time - 5) / 2));
+        if(type === 'mult') return Math.floor(20 * Math.pow(2.2, state.mult - 1));
+        if(type === 'lap') return 500 + ((state.lapBonus - 200) / 100) * 400;
+        if(type === 'event') return 100 + (state.events.length * 150) + (state.eventBaseG - 100) * 5;
+        if(type === 'ncbonus') return 300 + (state.fixedBonusIndices.length * 250) + (state.ncBonusBase - 50) * 10;
+        if(type === 'clearBonus') return 150 + (state.clearBonusBase - 10) * 30;
+        return 0;
+    }
+
+    function isLocked(type) {
+        if (state.unlockedByAsc) return false;
+        if (type === 'max') return state.max >= 25;
+        if (type === 'time') return state.time >= 30;
+        if (state.max < 10) {
+            if (['ncbonus', 'clearBonus', 'event', 'lap'].includes(type)) return true;
+            if (type === 'mult' && state.mult >= 3) return true;
+        }
+        if (state.max < 15) {
+            if (type === 'lap' && state.lapBonus >= 1000) return true;
+            if (type === 'ncbonus' && state.fixedBonusIndices.length >= 25) return true;
+            if (type === 'event' && state.events.length >= 14) return true;
+        }
+        if (state.max < 20) {
+            if (type === 'mult' && state.mult >= 10) return true;
+            if (type === 'lap' && state.lapBonus >= 3000) return true;
+        }
+        return false;
+    }
+
+    function pay(amount) {
+        state.coins -= amount;
+        state.totalSpent += amount;
+    }
+
+    function upgrade(type, isMax) {
+        let count = 0;
+        while (true) {
+            if (isLocked(type)) break;
+            let cost = getCost(type);
+            if (state.coins >= cost) {
+                pay(cost);
+                if (type === 'max') state.max++;
+                else if (type === 'mult') state.mult++;
+                else if (type === 'time') state.time += 2;
+                else if (type === 'lap') state.lapBonus += 100;
+                else if (type === 'clearBonus') state.clearBonusBase += 10;
+                count++;
+                if (!isMax) break;
+            } else { break; }
+        }
+        if (count > 0) { playSound(523, 0.1); updateUI(); if(type === 'max') initGrid(); }
+    }
+
+    function upgradeNCBonus(isMax) {
+        let count = 0;
+        while (true) {
+            if (isLocked('ncbonus')) break;
+            let cost = getCost('ncbonus');
+            if (state.coins >= cost) {
+                pay(cost);
+                if (state.fixedBonusIndices.length >= 25) {
+                    state.fixedBonusIndices = []; state.ncBonusBase += 50;
+                } else {
+                    let avail = [];
+                    for(let i=0; i<25; i++) if(!state.fixedBonusIndices.includes(i)) avail.push(i);
+                    state.fixedBonusIndices.push(avail[Math.floor(Math.random()*avail.length)]);
+                }
+                count++;
+                if (!isMax) break;
+            } else { break; }
+        }
+        if (count > 0) { playSound(900, 0.1); updateUI(); initGrid(); }
+    }
+
+    function upgradeEvent(isMax) {
+        let count = 0;
+        while (true) {
+            if (isLocked('event')) break;
+            let cost = getCost('event');
+            if (state.coins >= cost) {
+                pay(cost);
+                if (state.events.length >= 14) {
+                    state.events = []; state.eventBaseG += 100;
+                } else {
+                    let avail = [];
+                    for(let i=0; i<14; i++) if(!state.events.includes(i)) avail.push(i);
+                    state.events.push(avail[Math.floor(Math.random()*avail.length)]);
+                }
+                count++;
+                if (!isMax) break;
+            } else { break; }
+        }
+        if (count > 0) { playSound(900, 0.1); updateUI(); drawBoard(); }
+    }
+
+    function initGrid() {
+        const grid = document.getElementById('grid'); grid.innerHTML = '';
+        let cellValues = new Array(25).fill("");
+        let nums = [];
+        for(let i=1; i<=state.max; i++) nums.push(i);
+        nums.sort(() => Math.random() - 0.5);
+        let indices = [...Array(25).keys()].sort(() => Math.random() - 0.5);
+        nums.forEach((val, i) => { cellValues[indices[i]] = val; });
+        cellValues.forEach((val, idx) => {
+            const btn = document.createElement('button'); btn.className = 'cell';
+            if (state.fixedBonusIndices.includes(idx)) btn.classList.add('is-bonus-tile');
+            btn.textContent = val;
+            btn.onclick = () => {
+                if(!state.gameActive) return;
+                if (val === "" || val !== state.next) { state.isMissed = true; endGame(); return; }
+                playSound(800 + (state.next * 20), 0.05);
+                state.tempBaseCount++;
+                if (btn.classList.contains('is-bonus-tile')) stats.ncBonusG += (state.ncBonusBase * state.mult);
+                btn.classList.add('hidden'); 
+                if(state.next === state.max) handlePanelClear(); else state.next++;
+            };
+            grid.appendChild(btn);
+        });
+    }
+
+    function handlePanelClear() {
+        playSound(1200, 0.1, 'square');
+        state.tempBaseCount = 0; 
+        stats.ncTotalG += (state.clearBonusBase * state.mult) * (state.max / 5);
+        state.pos = (state.pos + 1) % outerPathCoords.length;
+        if (state.pos === 0) { stats.sgTotalG += state.lapBonus; }
+        if (state.events.includes(state.pos)) stats.sgTotalG += state.eventBaseG;
+
+        if(state.max === 25 && state.fixedBonusIndices.length === 25 && state.events.length === 14) {
+            clearInterval(state.timer); state.gameActive = false;
+            let dur = Math.floor((Date.now() - state.startTime) / 1000);
+            document.getElementById('clear-time-display').textContent = `${Math.floor(dur/60)}分${dur%60}秒`;
+            document.getElementById('clear-total-spent').textContent = Math.floor(state.totalSpent).toLocaleString();
+            document.getElementById('clear-overlay').style.display = 'flex';
+            return;
+        }
+        state.next = 1; drawBoard(); initGrid();
+    }
+
+    function startGame() {
+        if(state.gameActive) return;
+        hideResult(); state.gameActive = true; state.isMissed = false; state.tempBaseCount = 0;
+        state.next = 1; stats = { ncTotalG:0, ncBonusG:0, sgTotalG:0 };
+        document.getElementById('start-btn').disabled = true;
+        let timeLeft = state.time; initGrid();
+        state.timer = setInterval(() => {
+            timeLeft -= 0.1; document.getElementById('timer').textContent = Math.max(0, timeLeft).toFixed(1);
+            if(timeLeft <= 0) endGame();
+        }, 100);
+    }
+
+    function endGame() { clearInterval(state.timer); state.gameActive = false; showResult(); }
+
+    function showResult() {
+        let usedTicket = false; let currentMult = state.mult;
+        if (state.isMissed) {
+            if (state.hasPermTicket || state.tickets > 0) { 
+                if(!state.hasPermTicket) state.tickets--; usedTicket = true; 
+            } else { currentMult = Math.floor(state.mult / 2); }
+        }
+        let total = (stats.ncTotalG + (state.tempBaseCount * currentMult) + stats.ncBonusG + stats.sgTotalG) * (1 + state.ascCount * 0.5);
+        state.coins += total;
+        let body = `<div class="res-total">合計: ${Math.floor(total).toLocaleString()} G</div>`;
+        showPopup("Result", body);
+        document.getElementById('miss-msg').style.display = (state.isMissed && !usedTicket) ? 'block' : 'none';
+        document.getElementById('ticket-msg').style.display = usedTicket ? 'block' : 'none';
+        updateUI();
+    }
+
+    function hideResult() { document.getElementById('result-overlay').style.display = 'none'; document.getElementById('start-btn').disabled = false; }
+
+    function buyTicket() { if (state.coins >= 10000) { pay(10000); state.tickets++; updateUI(); } }
+    function buyPermTicket() { if (state.coins >= 2000000) { pay(2000000); state.hasPermTicket = true; updateUI(); } }
+
+    function showAscension() { 
+        let cost = (state.ascCount === 0) ? 0 : 20000 * Math.pow(4, state.ascCount - 1);
+        document.getElementById('asc-cost-display').textContent = Math.floor(cost).toLocaleString();
+        document.getElementById('ascension-overlay').style.display = 'flex'; 
+    }
+
+    function doAscension() {
+        let cost = (state.ascCount === 0) ? 0 : 20000 * Math.pow(4, state.ascCount - 1);
+        if (state.coins >= cost) {
+            if(state.max >= 20) state.unlockedByAsc = true;
+            state.coins = 0; state.ascCount++; state.max = 5; state.events = []; state.fixedBonusIndices = [];
+            document.getElementById('ascension-overlay').style.display = 'none';
+            updateUI(); initGrid(); drawBoard();
+        }
+    }
+
+    function updateUI() {
+        document.getElementById('coins').textContent = Math.floor(state.coins).toLocaleString();
+        document.getElementById('max-val').textContent = state.max;
+        document.getElementById('mult-val').textContent = state.mult;
+        document.getElementById('time-val').textContent = state.time;
+        document.getElementById('lap-val').textContent = state.lapBonus.toLocaleString();
+        document.getElementById('clear-bonus-val').textContent = state.clearBonusBase.toLocaleString();
+        document.getElementById('event-count').textContent = state.events.length;
+        document.getElementById('event-val').textContent = state.eventBaseG;
+        document.getElementById('nc-bonus-count').textContent = state.fixedBonusIndices.length;
+        document.getElementById('nc-bonus-val').textContent = state.ncBonusBase.toLocaleString();
+        document.getElementById('asc-count-display').textContent = "Rank: " + state.ascCount;
+        document.getElementById('ticket-count').textContent = state.hasPermTicket ? "∞" : state.tickets;
+
+        document.getElementById('btn-ticket').style.display = !state.hasPermTicket ? 'block' : 'none';
+        document.getElementById('btn-perm').style.display = (state.time >= 30 && !state.hasPermTicket) ? 'block' : 'none';
+        document.getElementById('btn-asc-trigger').style.display = state.max >= 15 ? 'block' : 'none';
+
+        ['max', 'mult', 'time', 'lap', 'event', 'ncbonus', 'clearBonus'].forEach(s => {
+            const id = (s === 'ncbonus' ? 'nc-bonus' : s === 'clearBonus' ? 'clear-bonus' : s);
+            const btn = document.getElementById('btn-' + id);
+            const maxBtn = document.getElementById('max-btn-' + id);
+            const cost = getCost(s);
+            let label = "";
+            if (s === 'time' && state.time >= 30) label = "MAX";
+            else if (s === 'max' && state.max >= 25) label = "MAX";
+            else if (isLocked(s)) label = "Level Low";
+            else label = cost.toLocaleString() + "G";
+
+            btn.querySelector('span[id^="cost"]').textContent = label;
+            btn.disabled = (label === "MAX") || isLocked(s) || (state.coins < cost);
+            if(maxBtn) maxBtn.disabled = btn.disabled;
+        });
+        document.getElementById('btn-perm').disabled = state.coins < 2000000;
+    }
+
+    function drawBoard() {
+        const container = document.getElementById('sugoroku-container');
+        container.querySelectorAll('.sq').forEach(c => c.remove());
+        for (let i = 0; i < outerPathCoords.length; i++) {
+            const div = document.createElement('div'); const [x, y] = outerPathCoords[i];
+            div.className = 'sq'; div.style.gridColumn = (x + 1); div.style.gridRow = (y + 1);
+            if (i === state.pos) div.classList.add('active');
+            if (state.events.includes(i)) div.classList.add('event');
+            div.textContent = (i === 0) ? 'S' : ''; container.appendChild(div);
+        }
+    }
+
+    function generateSaveCode() {
+        const data = btoa(JSON.stringify(state));
+        document.getElementById('save-code').value = data;
+    }
+
+    function loadSaveCode() {
+        try { const data = JSON.parse(atob(document.getElementById('load-input').value));
+            Object.assign(state, data); updateUI(); drawBoard(); initGrid();
+        } catch(e) { alert("Invalid Code"); }
+    }
+
+    updateUI(); initGrid(); drawBoard();
+</script>
+</body>
+</html>

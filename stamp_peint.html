@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>高度なスタンプペイントツール - 連続配置実装版</title>
+    <style>
+        body { 
+            font-family: 'Helvetica Neue', Arial, sans-serif; 
+            margin: 0; padding: 0; 
+            background: #2c3e50; 
+            height: 100vh; overflow: hidden;
+            display: flex; flex-direction: column;
+        }
+        header { background: #1a252f; color: white; padding: 10px 20px; display: flex; justify-content: space-between; align-items: center; }
+        #main-layout { display: flex; flex: 1; overflow: hidden; }
+
+        /* 左側パネル */
+        #side-panel {
+            width: 220px; background: #ecf0f1; border-right: 1px solid #bdc3c7;
+            display: flex; flex-direction: column; padding: 15px; gap: 20px; overflow-y: auto;
+        }
+        .section-title { font-size: 11px; font-weight: bold; color: #7f8c8d; margin-bottom: 8px; display: block; border-bottom: 1px solid #ddd; }
+
+        /* スタンプエリア */
+        #stamp-container {
+            display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px;
+            max-height: 250px; overflow-y: auto; padding-right: 5px;
+        }
+        .stamp-slot { 
+            aspect-ratio: 1/1; border: 2px solid #bdc3c7; border-radius: 6px;
+            cursor: pointer; display: flex; align-items: center; justify-content: center; 
+            background: white; transition: 0.2s; position: relative;
+        }
+        .stamp-slot:hover { border-color: #3498db; }
+        .stamp-slot.selected { border-color: #e67e22; box-shadow: 0 0 10px rgba(230,126,34,0.4); background: #fdf2e9; }
+        .stamp-slot img { max-width: 85%; max-height: 85%; object-fit: contain; pointer-events: none; }
+
+        .delete-btn {
+            position: absolute; top: -5px; right: -5px;
+            width: 20px; height: 20px; background: #e74c3c; color: white;
+            border-radius: 50%; display: none; align-items: center; justify-content: center;
+            font-size: 12px; font-weight: bold; border: 2px solid white;
+        }
+        .stamp-slot:hover .delete-btn { display: flex; }
+
+        /* キャンバスエリア */
+        #canvas-area { flex: 1; position: relative; background: #95a5a6; display: flex; align-items: center; justify-content: center; padding: 20px; }
+        #canvas-wrapper { 
+            position: relative; box-shadow: 0 0 30px rgba(0,0,0,0.3); background: white;
+            background-image: linear-gradient(45deg, #eee 25%, transparent 25%, transparent 75%, #eee 75%, #eee), 
+                              linear-gradient(45deg, #eee 25%, white 25%, white 75%, #eee 75%, #eee);
+            background-size: 20px 20px; background-position: 0 0, 10px 10px;
+        }
+        .bg-white { background-image: none !important; background-color: white !important; }
+        canvas { display: block; }
+        #grid-canvas { position: absolute; top: 0; left: 0; pointer-events: none; z-index: 2; }
+        #main-canvas { position: relative; z-index: 1; }
+
+        /* カスタムカーソル */
+        #stamp-cursor {
+            position: fixed; pointer-events: none; z-index: 9999;
+            width: 64px; height: 64px; display: none; opacity: 0.8;
+            transform: translate(-32px, -32px);
+        }
+        #stamp-cursor img { max-width: 100%; max-height: 100%; object-fit: contain; }
+        #stamp-cursor.invalid { filter: sepia(1) saturate(5) hue-rotate(-50deg); opacity: 0.6; }
+
+        .btn { padding: 10px; border: 1px solid #bdc3c7; border-radius: 6px; background: white; cursor: pointer; text-align: left; font-size: 14px; }
+        .btn:hover:not(:disabled) { background: #f8f9fa; }
+        .btn-active { background: #3498db !important; color: white; border-color: #2980b9; }
+        .btn-save { background: #27ae60; color: white; border: none; font-weight: bold; text-align: center; }
+        .input-group { display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer; }
+    </style>
+</head>
+<body>
+
+<header>
+    <div style="font-weight: bold;">STAMP PAINT PRO v2.5</div>
+    <div style="font-size: 12px;">Ctrl+V:追加 / 長押しで連続配置</div>
+</header>
+
+<div id="main-layout">
+    <div id="side-panel">
+        <div>
+            <span class="section-title">UNDO</span>
+            <button onclick="undo()" id="undo-btn" class="btn" style="text-align:center; width:100%">↩ 元に戻す (Ctrl+Z)</button>
+        </div>
+        <div>
+            <span class="section-title">STAMPS</span>
+            <input type="file" id="file-input" multiple accept="image/*" style="width: 100%; font-size: 11px; margin-bottom: 10px;">
+            <div id="stamp-container"></div>
+        </div>
+        <div>
+            <span class="section-title">TOOLS</span>
+            <div style="display: flex; flex-direction: column; gap: 8px;">
+                <button onclick="setMode('pen')" id="btn-pen" class="btn btn-active">🖊 ペン</button>
+                <button onclick="setMode('eraser')" id="btn-eraser" class="btn">🧽 消しゴム</button>
+            </div>
+        </div>
+        <div>
+            <span class="section-title">SETTINGS</span>
+            <div style="display: flex; flex-direction: column; gap: 10px;">
+                <select id="grid-size" onchange="drawGrid()" class="btn">
+                    <option value="0">📏 なし</option>
+                    <option value="16">📏 16x16</option>
+                    <option value="32">📏 32x32</option>
+                    <option value="64">📏 64x64</option>
+                </select>
+                <label class="input-group"><input type="checkbox" id="no-overlap" checked> 重ね合わせ防止</label>
+                <label class="input-group"><input type="checkbox" id="bg-transparent" onchange="toggleBg()"> 背景を透過</label>
+            </div>
+        </div>
+        <div style="margin-top: auto; display: flex; flex-direction: column; gap: 10px;">
+            <button onclick="clearCanvas()" class="btn">🗑 全消去</button>
+            <button onclick="saveCanvas()" class="btn btn-save">💾 保存 (PNG)</button>
+        </div>
+    </div>
+    <div id="canvas-area">
+        <div id="canvas-wrapper">
+            <canvas id="main-canvas"></canvas>
+            <canvas id="grid-canvas"></canvas>
+        </div>
+    </div>
+</div>
+
+<div id="stamp-cursor"><img src="" alt="cursor"></div>
+
+<script>
+    const canvas = document.getElementById('main-canvas');
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    const gridCanvas = document.getElementById('grid-canvas');
+    const gctx = gridCanvas.getContext('2d');
+    const wrapper = document.getElementById('canvas-wrapper');
+    const stampContainer = document.getElementById('stamp-container');
+    const stampCursor = document.getElementById('stamp-cursor');
+    const stampCursorImg = stampCursor.querySelector('img');
+    
+    let mode = 'pen';
+    let selectedStamp = null;
+    let isDrawing = false;
+    let undoStack = [];
+    const maxHistory = 30;
+
+    // --- 連続配置の制御用 ---
+    let lastStampPos = { x: 0, y: 0 };
+
+    function updateCursor(e) {
+        if (mode === 'stamp' && selectedStamp) {
+            stampCursor.style.display = 'block';
+            stampCursor.style.left = e.clientX + 'px';
+            stampCursor.style.top = e.clientY + 'px';
+            const rect = canvas.getBoundingClientRect();
+            if (e.clientX >= rect.left && e.clientX <= rect.right && e.clientY >= rect.top && e.clientY <= rect.bottom) {
+                if (document.getElementById('no-overlap').checked) {
+                    const x = e.clientX - rect.left - 32;
+                    const y = e.clientY - rect.top - 32;
+                    stampCursor.classList.toggle('invalid', !canPlace(x, y));
+                } else {
+                    stampCursor.classList.remove('invalid');
+                }
+            }
+        } else {
+            stampCursor.style.display = 'none';
+        }
+    }
+
+    function canPlace(x, y) {
+        try {
+            const data = ctx.getImageData(x, y, 64, 64).data;
+            for (let i = 3; i < data.length; i += 4) { if (data[i] > 0) return false; }
+            return true;
+        } catch (e) { return true; }
+    }
+
+    window.addEventListener('mousemove', updateCursor);
+    canvas.addEventListener('mouseenter', () => { if (mode === 'stamp' && selectedStamp) canvas.style.cursor = 'none'; });
+    canvas.addEventListener('mouseleave', () => { canvas.style.cursor = 'default'; });
+
+    // --- メイン描画処理 ---
+    function placeStampAt(clientX, clientY) {
+        if (mode !== 'stamp' || !selectedStamp) return;
+        const rect = canvas.getBoundingClientRect();
+        const x = clientY ? clientX - rect.left : clientX; // 座標計算
+        const y = clientY ? clientY - rect.top : clientY;
+        
+        const size = parseInt(document.getElementById('grid-size').value);
+        let drawX = (size > 0) ? Math.floor(x / size) * size : x - 32;
+        let drawY = (size > 0) ? Math.floor(y / size) * size : y - 32;
+
+        if (document.getElementById('no-overlap').checked && !canPlace(drawX, drawY)) return;
+        
+        ctx.drawImage(selectedStamp, drawX, drawY, 64, 64);
+    }
+
+    canvas.onmousedown = (e) => {
+        saveState();
+        isDrawing = true;
+        const rect = canvas.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+
+        if (mode === 'stamp' && selectedStamp) {
+            placeStampAt(e.clientX, e.clientY);
+        } else {
+            ctx.beginPath();
+            ctx.moveTo(x, y);
+        }
+    };
+
+    canvas.onmousemove = (e) => {
+        if (!isDrawing) return;
+        const rect = canvas.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+
+        if (mode === 'stamp' && selectedStamp) {
+            // 前回の配置場所から一定距離（例えば10px）離れたら次を置く
+            const dist = Math.hypot(x - lastStampPos.x, y - lastStampPos.y);
+            if (dist > 10) { 
+                placeStampAt(e.clientX, e.clientY);
+                lastStampPos = { x, y };
+            }
+        } else if (mode === 'pen' || mode === 'eraser') {
+            ctx.lineWidth = mode === 'eraser' ? 24 : 4;
+            ctx.lineCap = 'round';
+            ctx.strokeStyle = mode === 'eraser' ? '#ffffff' : '#0000ff';
+            ctx.globalCompositeOperation = (mode === 'eraser' && document.getElementById('bg-transparent').checked) ? 'destination-out' : 'source-over';
+            ctx.lineTo(x, y);
+            ctx.stroke();
+        }
+    };
+
+    window.onmouseup = () => { isDrawing = false; ctx.globalCompositeOperation = 'source-over'; };
+
+    // --- 基本機能 ---
+    function saveState() {
+        if (undoStack.length >= maxHistory) undoStack.shift();
+        undoStack.push(canvas.toDataURL());
+        updateUndoBtn();
+    }
+    function undo() {
+        if (undoStack.length > 0) {
+            const prevState = undoStack.pop();
+            const img = new Image(); img.src = prevState;
+            img.onload = () => { ctx.clearRect(0, 0, canvas.width, canvas.height); ctx.drawImage(img, 0, 0); };
+            updateUndoBtn();
+        }
+    }
+    function updateUndoBtn() { document.getElementById('undo-btn').disabled = undoStack.length === 0; }
+    window.addEventListener('keydown', (e) => { if (e.ctrlKey && e.key === 'z') { e.preventDefault(); undo(); } });
+
+    function initCanvasSize() {
+        const area = document.getElementById('canvas-area');
+        const w = Math.floor((area.clientWidth - 40) / 64) * 64;
+        const h = Math.floor((area.clientHeight - 40) / 64) * 64;
+        canvas.width = gridCanvas.width = w;
+        canvas.height = gridCanvas.height = h;
+        toggleBg(); drawGrid();
+    }
+    window.onresize = initCanvasSize; initCanvasSize();
+
+    function addStamp(src) {
+        const slot = document.createElement('div'); slot.className = 'stamp-slot';
+        const img = new Image(); img.src = src;
+        const delBtn = document.createElement('div'); delBtn.className = 'delete-btn'; delBtn.innerHTML = '×';
+        delBtn.onclick = (e) => { e.stopPropagation(); slot.remove(); if (selectedStamp === img) { selectedStamp = null; setMode('pen'); } };
+        img.onload = () => { slot.appendChild(img); slot.appendChild(delBtn); stampContainer.prepend(slot); slot.onclick = () => selectStamp(slot, img); };
+    }
+    window.addEventListener('paste', (e) => {
+        const items = (e.clipboardData || e.originalEvent.clipboardData).items;
+        for (const item of items) { if (item.type.indexOf('image') !== -1) { const reader = new FileReader(); reader.onload = (ev) => addStamp(ev.target.result); reader.readAsDataURL(item.getAsFile()); } }
+    });
+    document.getElementById('file-input').onchange = (e) => { Array.from(e.target.files).forEach(file => { const reader = new FileReader(); reader.onload = (ev) => addStamp(ev.target.result); reader.readAsDataURL(file); }); };
+
+    function selectStamp(slot, img) {
+        document.querySelectorAll('.stamp-slot').forEach(s => s.classList.remove('selected'));
+        slot.classList.add('selected'); selectedStamp = img; mode = 'stamp';
+        stampCursorImg.src = img.src; canvas.style.cursor = 'none';
+        document.getElementById('btn-pen').classList.remove('btn-active');
+        document.getElementById('btn-eraser').classList.remove('btn-active');
+    }
+    function setMode(m) {
+        mode = m;
+        document.getElementById('btn-pen').classList.toggle('btn-active', mode === 'pen');
+        document.getElementById('btn-eraser').classList.toggle('btn-active', mode === 'eraser');
+        if (m !== 'stamp') {
+            document.querySelectorAll('.stamp-slot').forEach(s => s.classList.remove('selected'));
+            canvas.style.cursor = 'crosshair'; stampCursor.style.display = 'none';
+        }
+    }
+    function toggleBg() { wrapper.classList.toggle('bg-white', !document.getElementById('bg-transparent').checked); }
+    function drawGrid() {
+        const size = parseInt(document.getElementById('grid-size').value); gctx.clearRect(0, 0, gridCanvas.width, gridCanvas.height);
+        if (size === 0) return; gctx.beginPath(); gctx.strokeStyle = "rgba(0,0,0,0.1)";
+        for (let x = 0; x <= gridCanvas.width; x += size) { gctx.moveTo(x, 0); gctx.lineTo(x, gridCanvas.height); }
+        for (let y = 0; y <= gridCanvas.height; y += size) { gctx.moveTo(0, y); gctx.lineTo(gridCanvas.width, y); }
+        gctx.stroke();
+    }
+    function clearCanvas() { if(confirm('全消去しますか？')) { saveState(); ctx.clearRect(0, 0, canvas.width, canvas.height); } }
+    function saveCanvas() { const link = document.createElement('a'); link.download = 'art.png'; link.href = canvas.toDataURL("image/png"); link.click(); }
+</script>
+</body>
+</html>

@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>除外機能付き！銀剥がしツール</title>
+    <style>
+        body { font-family: sans-serif; text-align: center; background-color: #f4f7f9; padding: 20px; color: #333; }
+        .container { background: white; padding: 30px; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); max-width: 950px; margin: auto; }
+        h1 { color: #2c3e50; border-bottom: 4px solid #3498db; display: inline-block; padding-bottom: 5px; margin-bottom: 30px; }
+        .config-box { background: #f8f9fa; padding: 25px; border-radius: 15px; border: 2px solid #dee2e6; margin-bottom: 20px; text-align: left; }
+        .config-row { margin-bottom: 15px; display: flex; align-items: center; gap: 15px; flex-wrap: wrap; }
+        input[type="number"] { font-size: 18px; width: 70px; padding: 8px; border: 1px solid #ccc; border-radius: 5px; }
+        textarea { width: 100%; height: 80px; margin-top: 10px; font-size: 18px; padding: 10px; border-radius: 8px; border: 1px solid #ccc; box-sizing: border-box; }
+        
+        .btn-main { display: block; width: 280px; margin: 10px auto; padding: 15px; font-size: 20px; cursor: pointer; border: none; border-radius: 10px; background: #28a745; color: white; font-weight: bold; box-shadow: 0 4px 0 #1e7e34; }
+        .btn-main:active { transform: translateY(3px); box-shadow: none; }
+
+        /* おかわりボタンエリア */
+        .retry-area { margin-top: 20px; display: flex; justify-content: center; gap: 15px; flex-wrap: wrap; }
+        .btn-retry { padding: 15px 25px; font-size: 18px; cursor: pointer; border: none; border-radius: 10px; color: white; font-weight: bold; }
+        .btn-blue { background: #3498db; box-shadow: 0 4px 0 #2980b9; }
+        .btn-red { background: #e74c3c; box-shadow: 0 4px 0 #c0392b; }
+        .btn-retry:active { transform: translateY(3px); box-shadow: none; }
+
+        #status-bar { margin: 20px 0; font-weight: bold; color: #3498db; font-size: 24px; display: none; }
+        #game-stage { margin-top: 20px; display: flex; flex-wrap: wrap; justify-content: center; min-height: 100px; }
+        .scratch-box { width: 200px; height: 75px; background: #adb5bd; border: 2px solid #6c757d; display: inline-flex; align-items: center; justify-content: center; font-size: 26px; font-weight: bold; cursor: pointer; border-radius: 12px; user-select: none; color: transparent; margin: 10px; transition: 0.1s; }
+        .scratch-box.selected { border: 6px solid #e67e22 !important; background: #ffedcc !important; }
+        .scratch-box.revealed { background: #fff !important; border: 6px solid #003366 !important; color: #000 !important; cursor: default; }
+        
+        #result-area { display: none; margin-top: 30px; padding: 30px; background: #fffde6; border: 4px solid #f1c40f; border-radius: 20px; font-size: 26px; font-weight: bold; }
+        .result-item { display: inline-block; background: white; border: 3px solid #003366; padding: 12px 24px; margin: 8px; border-radius: 10px; }
+        .stock-info { font-size: 16px; color: #666; margin-top: 10px; font-weight: normal; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>選んで出力！銀剥がしツール</h1>
+
+    <div id="setup-area" class="config-box">
+        <div class="config-row">
+            <span>① 全体の個数:</span>
+            <input type="number" id="total-qty" value="30" min="1" max="100">
+        </div>
+        <div class="config-row">
+            <span>② 1回に削る個数:</span>
+            <input type="number" id="pick-qty" value="4" min="1" max="100">
+        </div>
+        <div class="config-row">
+            <span>③ 内容:</span>
+            <label><input type="radio" name="type" value="num" checked onclick="document.getElementById('text-input-div').style.display='none'"> 数字(1〜)</label>
+            <label style="margin-left:15px;"><input type="radio" name="type" value="text" onclick="document.getElementById('text-input-div').style.display='block'"> 好きな文字</label>
+        </div>
+        <div id="text-input-div" style="display:none;">
+            <textarea id="list-input" placeholder="改行区切りで入力"></textarea>
+        </div>
+        <button class="btn-main" onclick="initNewGame()">新しく銀剥がしを作成</button>
+    </div>
+
+    <div id="status-bar"></div>
+    <div id="game-stage"></div>
+
+    <div id="result-area">
+        <div style="margin-bottom:15px; color:#d35400;">✨ 今回の結果 ✨</div>
+        <div id="result-list"></div>
+        
+        <div class="stock-info" id="stock-display"></div>
+
+        <div class="retry-area">
+            <button class="btn-retry btn-blue" onclick="initNewGame()">同じ条件で最初から(全復活)</button>
+            <button class="btn-retry btn-red" id="btn-exclude" onclick="initExcludeGame()">この結果を除いてもう1度</button>
+        </div>
+    </div>
+    
+    <span style="margin-top:50px; display:block; color:#999; cursor:pointer; text-decoration:underline;" onclick="location.reload()">設定リセット</span>
+</div>
+
+<script>
+    let currentStock = []; // 現在の残り選択肢
+    let pickLimit = 0;
+    let currentPicked = 0;
+    let pickedValues = [];
+    let audioCtx = null;
+
+    function playBeep(type) {
+        try {
+            if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.connect(gain); gain.connect(audioCtx.destination);
+            if (type === 'select') {
+                osc.type = 'sine'; osc.frequency.setValueAtTime(880, audioCtx.currentTime);
+                gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+                osc.start(); osc.stop(audioCtx.currentTime + 0.1);
+            } else {
+                osc.type = 'triangle'; osc.frequency.setValueAtTime(523.25, audioCtx.currentTime);
+                gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+                osc.start(); osc.stop(audioCtx.currentTime + 0.4);
+            }
+        } catch(e) {}
+    }
+
+    function shuffle(array) {
+        for (let i = array.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [array[i], array[j]] = [array[j], array[i]];
+        }
+        return array;
+    }
+
+    // 全く新しくゲームを開始する
+    function initNewGame() {
+        const total = parseInt(document.getElementById('total-qty').value) || 1;
+        const isTextMode = document.querySelector('input[name="type"]:checked').value === 'text';
+        
+        currentStock = [];
+        if (!isTextMode) {
+            for (let i = 1; i <= total; i++) currentStock.push(i);
+        } else {
+            const lines = document.getElementById('list-input').value.split('\n').filter(l => l.trim() !== "");
+            const base = lines.length > 0 ? lines : ["SAMPLE"];
+            for (let i = 0; i < total; i++) currentStock.push(base[i % base.length]);
+        }
+        buildStage();
+    }
+
+    // 現在の結果を除外して次へ
+    function initExcludeGame() {
+        // pickedValuesに含まれる要素をcurrentStockから削除
+        pickedValues.forEach(val => {
+            const index = currentStock.indexOf(val);
+            if (index !== -1) currentStock.splice(index, 1);
+        });
+        buildStage();
+    }
+
+    function buildStage() {
+        const stage = document.getElementById('game-stage');
+        const statusBar = document.getElementById('status-bar');
+        pickLimit = parseInt(document.getElementById('pick-qty').value) || 1;
+
+        if (currentStock.length < pickLimit) {
+            alert("残りの選択肢（" + currentStock.length + "個）が、選ぶ個数より少ないです。");
+            return;
+        }
+
+        stage.innerHTML = "";
+        document.getElementById('result-area').style.display = "none";
+        statusBar.style.display = "block";
+        statusBar.innerHTML = '残り ' + currentStock.length + ' 個中、あと <span id="remain-count">' + pickLimit + '</span> 個選んでください';
+        
+        currentPicked = 0;
+        pickedValues = [];
+
+        let displayItems = [...currentStock]; // 在庫をコピーしてシャッフル
+        shuffle(displayItems);
+
+        displayItems.forEach(val => {
+            const box = document.createElement('div');
+            box.className = 'scratch-box';
+            box.textContent = val;
+            box.onclick = function() {
+                if (currentPicked < pickLimit && !this.classList.contains('selected')) {
+                    playBeep('select');
+                    this.classList.add('selected');
+                    pickedValues.push(val);
+                    currentPicked++;
+                    document.getElementById('remain-count').textContent = pickLimit - currentPicked;
+                    if (currentPicked >= pickLimit) {
+                        setTimeout(() => { playBeep('finish'); showResults(); }, 200);
+                    }
+                }
+            };
+            stage.appendChild(box);
+        });
+        statusBar.scrollIntoView({ behavior: 'smooth' });
+    }
+
+    function showResults() {
+        document.getElementById('status-bar').textContent = "選び終わりました！";
+        document.querySelectorAll('.scratch-box').forEach(b => b.classList.add('revealed'));
+        const resList = document.getElementById('result-list');
+        resList.innerHTML = "";
+        pickedValues.forEach(v => {
+            const item = document.createElement('div');
+            item.className = 'result-item';
+            item.textContent = v;
+            resList.appendChild(item);
+        });
+
+        document.getElementById('stock-display').textContent = "（現在の残り選択肢： " + (currentStock.length - pickedValues.length) + " 個）";
+        document.getElementById('result-area').style.display = "block";
+        setTimeout(() => { document.getElementById('result-area').scrollIntoView({ behavior: 'smooth' }); }, 300);
+    }
+</script>
+
+</body>
+</html>

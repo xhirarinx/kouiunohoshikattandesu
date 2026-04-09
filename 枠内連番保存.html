@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>Grid Image Slicer Pro</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<style>
+    body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f4f7f6; padding: 20px; color: #333; }
+    .controls { background: white; padding: 20px; border-radius: 12px; margin-bottom: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
+    .grid-container { 
+        display: flex; flex-wrap: wrap; gap: 8px; 
+        background: #fff; padding: 15px; border: 1px solid #ccc;
+        min-height: 120px; width: fit-content; border-radius: 8px;
+    }
+    .slot {
+        /* 枠の色を黒に変更 */
+        border: 1px solid #000000; 
+        display: flex; align-items: center; justify-content: center;
+        position: relative; overflow: hidden;
+        background-color: #ffffff;
+        cursor: pointer;
+        transition: background-color 0.2s;
+    }
+    /* 選択中の枠は少し青みがかった色にして分かりやすく */
+    .slot.selected { 
+        outline: 3px solid #2196F3; 
+        outline-offset: -3px;
+        background-color: #e3f2fd; 
+    }
+    /* 保存用に枠線を消す設定 */
+    .slot.no-border { border-color: transparent; }
+    
+    .slot img { max-width: 100%; max-height: 100%; object-fit: contain; pointer-events: none; }
+    
+    /* 枠番号も作業中に見やすいよう調整 */
+    .slot::after {
+        content: attr(data-index);
+        position: absolute; bottom: 1px; right: 2px;
+        font-size: 9px; color: #000; background: rgba(255,255,255,0.7);
+        padding: 0 2px; border-radius: 2px;
+    }
+
+    input[type="number"] { width: 70px; padding: 5px; border: 1px solid #ddd; border-radius: 4px; }
+    button { cursor: pointer; padding: 8px 18px; border-radius: 6px; border: 1px solid #ddd; background: #fff; }
+    .btn-save { background: #007bff; color: white; border: none; font-weight: bold; margin-left: 10px; }
+    .btn-save:hover { background: #0056b3; }
+    .hint { font-size: 0.85em; color: #666; margin-top: 10px; }
+</style>
+</head>
+<body>
+
+<div class="controls">
+    <b>設定:</b>
+    サイズ <input type="number" id="size" value="64"> px 
+    個数 <input type="number" id="count" value="10">
+    <label><input type="checkbox" id="showBorder" checked onchange="updateStyles()"> 枠線を表示</label>
+    <button onclick="generateGrid()">グリッド再生成</button>
+    <button class="btn-save" onclick="downloadAll()">一括連番保存 (ZIP)</button>
+    
+    <div class="hint">
+        ・枠をクリックして選択し <b>Ctrl + V</b> で貼り付け（自動で次の枠へ移動します）<br>
+        ・画像をドラッグ＆ドロップでも配置可能
+    </div>
+</div>
+
+<div id="grid" class="grid-container"></div>
+<canvas id="canvas" style="display:none;"></canvas>
+
+<script>
+    let selectedSlot = null;
+
+    // 初期化時にライブラリチェック
+    window.onload = () => {
+        if (typeof JSZip === 'undefined') {
+            alert("エラー: JSZipライブラリが読み込めませんでした。インターネット接続を確認するか、別のブラウザでお試しください。");
+        }
+        generateGrid();
+    };
+
+    function generateGrid() {
+        const grid = document.getElementById('grid');
+        const size = document.getElementById('size').value;
+        const count = document.getElementById('count').value;
+        
+        grid.innerHTML = '';
+        selectedSlot = null;
+
+        for (let i = 1; i <= count; i++) {
+            const slot = document.createElement('div');
+            slot.className = 'slot';
+            slot.style.width = size + 'px';
+            slot.style.height = size + 'px';
+            slot.dataset.index = i;
+            
+            slot.onclick = () => {
+                document.querySelectorAll('.slot').forEach(s => s.classList.remove('selected'));
+                slot.classList.add('selected');
+                selectedSlot = slot;
+            };
+
+            slot.ondragover = (e) => { e.preventDefault(); slot.style.borderColor = '#2196F3'; };
+            slot.ondragleave = () => { slot.style.borderColor = '#eee'; };
+            slot.ondrop = (e) => {
+                e.preventDefault();
+                handleFile(e.dataTransfer.files, slot);
+            };
+
+            grid.appendChild(slot);
+        }
+        updateStyles();
+    }
+
+    function updateStyles() {
+        const showBorder = document.getElementById('showBorder').checked;
+        document.querySelectorAll('.slot').forEach(s => {
+            if (showBorder) s.classList.remove('no-border');
+            else s.classList.add('no-border');
+        });
+    }
+
+    window.addEventListener('paste', (e) => {
+        if (!selectedSlot) return;
+
+        const items = e.clipboardData.items;
+        for (let i = 0; i < items.length; i++) {
+            if (items[i].type.indexOf('image') !== -1) {
+                const blob = items[i].getAsFile();
+                handleFile(blob, selectedSlot);
+                
+                // 次の枠へ自動移動
+                const next = selectedSlot.nextElementSibling;
+                if (next) next.click(); 
+                break;
+            }
+        }
+    });
+
+    function handleFile(file, slot) {
+        if (!file || !file.type.startsWith('image/')) return;
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            slot.innerHTML = `<img src="${e.target.result}">`;
+        };
+        reader.readAsDataURL(file);
+    }
+
+    async function downloadAll() {
+        if (typeof JSZip === 'undefined') {
+            alert("JSZipが読み込まれていないため、ZIP作成ができません。");
+            return;
+        }
+
+        const zip = new JSZip();
+        const size = parseInt(document.getElementById('size').value);
+        const slots = document.querySelectorAll('.slot');
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        const folder = zip.folder("images");
+
+        canvas.width = size;
+        canvas.height = size;
+
+        let imgCount = 0;
+        for (let i = 0; i < slots.length; i++) {
+            const img = slots[i].querySelector('img');
+            if (img) {
+                ctx.clearRect(0, 0, size, size);
+                // 背景を白にする場合はここに追加（透過PNGなら不要）
+                ctx.drawImage(img, 0, 0, size, size);
+                
+                // PNG形式で取得
+                const dataUrl = canvas.toDataURL('image/png');
+                const base64Data = dataUrl.replace(/^data:image\/(png|jpg);base64,/, "");
+                
+                folder.file(`${i + 1}.png`, base64Data, {base64: true});
+                imgCount++;
+            }
+        }
+
+        if (imgCount === 0) return alert("画像が1枚も配置されていません。");
+
+        try {
+            const content = await zip.generateAsync({type: "blob"});
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(content);
+            link.download = "output_images.zip";
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        } catch (err) {
+            console.error(err);
+            alert("ZIP作成中にエラーが発生しました。");
+        }
+    }
+</script>
+
+</body>
+</html>

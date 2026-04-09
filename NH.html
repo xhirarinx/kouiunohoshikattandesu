@@ -1,0 +1,590 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Number Combo Typer - High Risk High Return</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@700&display=swap');
+        
+        body {
+            background-color: #0f172a;
+            color: #f8fafc;
+            font-family: 'JetBrains+Mono', monospace;
+            overflow: hidden;
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            width: 100vw;
+            touch-action: none;
+        }
+
+        #game-wrapper {
+            position: relative;
+            width: 95vw;
+            height: 55vh; 
+            max-width: 600px;
+            max-height: 800px;
+            background: #1e293b;
+            border: 4px solid #334155;
+            border-radius: 20px;
+            overflow: hidden;
+            box-shadow: 0 0 50px rgba(0,0,0,0.5);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        #game-wrapper.full-screen {
+            height: 85vh;
+            max-height: 90vh;
+        }
+
+        canvas {
+            display: block;
+            background: radial-gradient(circle at center, #1e293b 0%, #0f172a 100%);
+        }
+
+        #ui-layer {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            right: 10px;
+            pointer-events: none;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            z-index: 5;
+        }
+
+        .stats-card {
+            background: rgba(15, 23, 42, 0.6);
+            backdrop-filter: blur(2px);
+            padding: 6px 12px;
+            border-radius: 12px;
+            border: 1px solid rgba(255,255,255,0.05);
+        }
+
+        #combo-display {
+            position: absolute;
+            top: 40%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 2.5rem;
+            opacity: 0;
+            transition: all 0.2s ease-out;
+            color: #38bdf8;
+            text-shadow: 0 0 20px rgba(56, 189, 248, 0.5);
+            pointer-events: none;
+            z-index: 10;
+        }
+
+        .combo-active {
+            opacity: 0.5 !important;
+            transform: translate(-50%, -50%) scale(1.1) !important;
+        }
+
+        #keypad-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            transition: all 0.3s ease;
+        }
+
+        #keypad {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 8px;
+            width: 90vw;
+            max-width: 280px;
+            margin-top: 10px;
+            padding: 5px;
+            z-index: 20;
+        }
+
+        .hidden-keypad {
+            display: none !important;
+        }
+
+        .key {
+            background: rgba(51, 65, 85, 0.8);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 10px;
+            height: 45px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2rem;
+            font-weight: bold;
+            color: #f8fafc;
+            cursor: pointer;
+            user-select: none;
+            transition: all 0.1s;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .key:active {
+            background: #38bdf8;
+            color: #0f172a;
+            transform: scale(0.92);
+        }
+
+        .key-control {
+            font-size: 0.8rem;
+            background: rgba(30, 41, 59, 0.9);
+            color: #94a3b8;
+        }
+
+        #toggle-keypad-btn {
+            margin-top: 10px;
+            font-size: 0.75rem;
+            color: #64748b;
+            text-decoration: underline;
+            cursor: pointer;
+            padding: 5px;
+        }
+
+        #overlay {
+            position: absolute;
+            inset: 0;
+            background: rgba(15, 23, 42, 0.95);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 50;
+            padding: 20px;
+            text-align: center;
+        }
+
+        .btn {
+            background: #38bdf8;
+            color: #0f172a;
+            padding: 10px 25px;
+            border-radius: 9999px;
+            font-weight: bold;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: all 0.2s;
+            border: none;
+            margin-top: 10px;
+        }
+
+        .btn-outline {
+            background: transparent;
+            border: 2px solid #38bdf8;
+            color: #38bdf8;
+        }
+
+        .particle {
+            position: absolute;
+            pointer-events: none;
+            border-radius: 50%;
+            z-index: 100;
+        }
+
+        .slow-mode {
+            border-color: #38bdf8 !important;
+            box-shadow: 0 0 15px rgba(56, 189, 248, 0.2) inset;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="game-wrapper">
+        <div id="ui-layer">
+            <div class="stats-card">
+                <div class="text-[9px] opacity-70 leading-tight">SCORE</div>
+                <div id="score" class="text-lg font-bold text-sky-400 leading-none">0</div>
+            </div>
+            <div class="stats-card text-right">
+                <div class="text-[9px] opacity-70 leading-tight">COMBO</div>
+                <div id="current-combo" class="text-lg font-bold text-yellow-400 leading-none">0</div>
+            </div>
+        </div>
+
+        <div id="combo-display">0</div>
+
+        <canvas id="gameCanvas"></canvas>
+
+        <div id="overlay">
+            <h1 id="overlay-title" class="text-2xl font-extrabold mb-1 text-white italic">NUMBER COMBO</h1>
+            
+            <div id="best-score-container" class="mb-2 text-yellow-400 font-bold text-sm">
+                BEST: <span id="best-score">0</span>
+            </div>
+
+            <p id="message" class="text-xs opacity-80 mb-3 leading-relaxed">
+                同じ数字を連続で打ってコンボ！<br>
+                Spaceキーで一時停止できます
+            </p>
+            <div id="overlay-buttons" class="flex flex-col gap-2">
+                <button id="startBtn" class="btn">START GAME</button>
+                <button id="backToTitleBtn" class="btn btn-outline" style="display: none;">TITLE</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="keypad-container">
+        <div id="keypad">
+            <div class="key" onclick="handleInput('1')">1</div>
+            <div class="key" onclick="handleInput('2')">2</div>
+            <div class="key" onclick="handleInput('3')">3</div>
+            <div class="key" onclick="handleInput('4')">4</div>
+            <div class="key" onclick="handleInput('5')">5</div>
+            <div class="key" onclick="handleInput('6')">6</div>
+            <div class="key" onclick="handleInput('7')">7</div>
+            <div class="key" onclick="handleInput('8')">8</div>
+            <div class="key" onclick="handleInput('9')">9</div>
+            
+            <div id="pauseBtn" class="key key-control" onclick="togglePause()">PAUSE</div>
+            <div class="key" onclick="handleInput('0')">0</div>
+            <div id="retryBtn" class="key key-control opacity-30 cursor-not-allowed" onclick="handleRetry()">RETRY</div>
+        </div>
+        <div id="toggle-keypad-btn" onclick="toggleKeypadVisibility()">キーパッドを非表示にする (PC向け)</div>
+    </div>
+
+    <script>
+        const wrapper = document.getElementById('game-wrapper');
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const scoreEl = document.getElementById('score');
+        const comboEl = document.getElementById('current-combo');
+        const bestScoreEl = document.getElementById('best-score');
+        const comboDisplay = document.getElementById('combo-display');
+        const overlay = document.getElementById('overlay');
+        const overlayTitle = document.getElementById('overlay-title');
+        const startBtn = document.getElementById('startBtn');
+        const backToTitleBtn = document.getElementById('backToTitleBtn');
+        const messageEl = document.getElementById('message');
+        const pauseBtn = document.getElementById('pauseBtn');
+        const retryBtn = document.getElementById('retryBtn');
+        const keypad = document.getElementById('keypad');
+        const toggleBtn = document.getElementById('toggle-keypad-btn');
+
+        let score = 0;
+        let comboCount = 0;
+        let lastChar = null;
+        let numbers = [];
+        let gameActive = false;
+        let isPaused = false;
+        let spawnTimer = 0;
+        let noInputTimer = 0; // 操作なし時間を計測するタイマー
+        let keypadVisible = true;
+        let bestScore = parseInt(localStorage.getItem('numCombo_bestScore')) || 0;
+        
+        const INITIAL_SPEED = 0.45;
+        const SPEED_INCREMENT = 0.00002;
+        let difficulty = 1;
+        let slowTimeFactor = 1.0;
+
+        const COMBO_POINTS = { 1: 1, 2: 5, 3: 20, 4: 200, 5: 2000 };
+
+        bestScoreEl.innerText = bestScore.toLocaleString();
+
+        function resize() {
+            canvas.width = wrapper.clientWidth;
+            canvas.height = wrapper.clientHeight;
+        }
+
+        function toggleKeypadVisibility() {
+            keypadVisible = !keypadVisible;
+            if (keypadVisible) {
+                keypad.classList.remove('hidden-keypad');
+                wrapper.classList.remove('full-screen');
+                toggleBtn.innerText = "キーパッドを非表示にする (PC向け)";
+            } else {
+                keypad.classList.add('hidden-keypad');
+                wrapper.classList.add('full-screen');
+                toggleBtn.innerText = "キーパッドを表示する";
+            }
+            setTimeout(resize, 310);
+        }
+
+        window.addEventListener('resize', resize);
+        resize();
+
+        class FallingNumber {
+            constructor() {
+                this.value = Math.floor(Math.random() * 10).toString();
+                this.size = 28 + Math.random() * 8;
+                this.x = Math.random() * (canvas.width - this.size * 2) + this.size;
+                this.y = -30;
+                this.baseSpeed = (Math.random() * 0.3 + INITIAL_SPEED);
+                this.color = `hsl(${Math.random() * 360}, 70%, 70%)`;
+            }
+
+            draw() {
+                ctx.fillStyle = this.color;
+                ctx.font = `bold ${this.size}px 'JetBrains Mono'`;
+                ctx.textAlign = 'center';
+                ctx.shadowBlur = 10;
+                ctx.shadowColor = this.color;
+                ctx.globalAlpha = 1.0; 
+                ctx.fillText(this.value, this.x, this.y);
+                ctx.shadowBlur = 0;
+            }
+
+            update() {
+                if (isPaused) return;
+                this.y += this.baseSpeed * difficulty * slowTimeFactor;
+                if (this.y > canvas.height) {
+                    gameOver();
+                }
+            }
+        }
+
+        function spawnNumber() {
+            numbers.push(new FallingNumber());
+        }
+
+        function createParticles(x, y, color) {
+            const rect = canvas.getBoundingClientRect();
+            for (let i = 0; i < 6; i++) {
+                const p = document.createElement('div');
+                p.className = 'particle';
+                const size = Math.random() * 4 + 2;
+                p.style.width = `${size}px`;
+                p.style.height = `${size}px`;
+                p.style.background = color;
+                p.style.left = `${rect.left + x}px`;
+                p.style.top = `${rect.top + y}px`;
+                document.body.appendChild(p);
+
+                const angle = Math.random() * Math.PI * 2;
+                const dist = Math.random() * 40 + 10;
+                const destX = Math.cos(angle) * dist;
+                const destY = Math.sin(angle) * dist;
+
+                p.animate([
+                    { transform: 'translate(0, 0) scale(1)', opacity: 1 },
+                    { transform: `translate(${destX}px, ${destY}px) scale(0)`, opacity: 0 }
+                ], {
+                    duration: 400,
+                    easing: 'ease-out'
+                }).onfinish = () => p.remove();
+            }
+        }
+
+        function togglePause() {
+            if (!gameActive) return;
+            isPaused = !isPaused;
+            
+            if (isPaused) {
+                pauseBtn.innerText = "RESUME";
+                pauseBtn.classList.add('key-pause-active');
+                retryBtn.classList.remove('opacity-30', 'cursor-not-allowed');
+                overlay.style.display = 'flex';
+                overlayTitle.innerText = "PAUSED";
+                startBtn.innerText = "RESUME GAME";
+                backToTitleBtn.style.display = 'block';
+            } else {
+                pauseBtn.innerText = "PAUSE";
+                pauseBtn.classList.remove('key-pause-active');
+                retryBtn.classList.add('opacity-30', 'cursor-not-allowed');
+                overlay.style.display = 'none';
+                backToTitleBtn.style.display = 'none';
+            }
+        }
+
+        function handleRetry() {
+            if (isPaused || !gameActive) {
+                resetGame();
+            }
+        }
+
+        function handleInput(key) {
+            if (!gameActive || isPaused) return;
+            if (!/^[0-9]$/.test(key)) return;
+
+            const targetIndex = numbers.findIndex(n => n.value === key);
+
+            if (targetIndex !== -1) {
+                const target = numbers[targetIndex];
+                
+                // 操作があったのでタイマーリセット
+                noInputTimer = 0;
+
+                if (key === lastChar) {
+                    comboCount++;
+                } else {
+                    comboCount = 1;
+                }
+
+                const points = COMBO_POINTS[Math.min(comboCount, 5)] || 2000;
+                score += points;
+                lastChar = key;
+
+                scoreEl.innerText = score.toLocaleString();
+                comboEl.innerText = comboCount;
+                
+                if (comboCount >= 2) {
+                    slowTimeFactor = Math.max(0.4, 1.1 - (comboCount * 0.15));
+                    wrapper.classList.add('slow-mode');
+                    
+                    comboDisplay.innerText = `${comboCount} COMBO`;
+                    comboDisplay.classList.add('combo-active');
+                    setTimeout(() => comboDisplay.classList.remove('combo-active'), 300);
+                } else {
+                    slowTimeFactor = 1.0;
+                    wrapper.classList.remove('slow-mode');
+                }
+
+                createParticles(target.x, target.y, target.color);
+                numbers.splice(targetIndex, 1);
+            } else {
+                score = Math.max(0, score - 20);
+                scoreEl.innerText = score.toLocaleString();
+                comboCount = 0;
+                comboEl.innerText = comboCount;
+                lastChar = null;
+                slowTimeFactor = 1.0;
+                
+                wrapper.classList.remove('slow-mode');
+                wrapper.style.borderColor = '#ef4444';
+                setTimeout(() => {
+                    if (gameActive && !isPaused && comboCount < 2) wrapper.style.borderColor = '#334155';
+                }, 150);
+            }
+        }
+
+        function gameOver() {
+            gameActive = false;
+            isPaused = false;
+            wrapper.classList.remove('slow-mode');
+            overlay.style.display = 'flex';
+            overlayTitle.innerText = "GAME OVER";
+
+            if (score > bestScore) {
+                bestScore = score;
+                localStorage.setItem('numCombo_bestScore', bestScore);
+                bestScoreEl.innerText = bestScore.toLocaleString();
+                messageEl.innerHTML = `<span class="text-yellow-400 font-bold">NEW BEST SCORE!</span><br>スコア: ${score.toLocaleString()}`;
+            } else {
+                messageEl.innerHTML = `スコア: ${score.toLocaleString()}<br>コンボを繋いでハイスコア！`;
+            }
+
+            startBtn.innerText = 'PLAY AGAIN';
+            backToTitleBtn.style.display = 'block';
+            
+            pauseBtn.innerText = "PAUSE";
+            pauseBtn.classList.remove('key-pause-active');
+            retryBtn.classList.remove('opacity-30', 'cursor-not-allowed');
+        }
+
+        function showTitleScreen() {
+            gameActive = false;
+            isPaused = false;
+            numbers = [];
+            score = 0;
+            comboCount = 0;
+            scoreEl.innerText = '0';
+            comboEl.innerText = '0';
+            bestScoreEl.innerText = bestScore.toLocaleString();
+            wrapper.classList.remove('slow-mode');
+            wrapper.style.borderColor = '#334155';
+            
+            overlay.style.display = 'flex';
+            overlayTitle.innerText = "NUMBER COMBO";
+            messageEl.innerHTML = `同じ数字を連続で打ってコンボ！<br>Spaceキーで一時停止できます`;
+            startBtn.innerText = 'START GAME';
+            backToTitleBtn.style.display = 'none';
+
+            pauseBtn.innerText = "PAUSE";
+            pauseBtn.classList.remove('key-pause-active');
+            retryBtn.classList.add('opacity-30', 'cursor-not-allowed');
+            
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+        }
+
+        function resetGame() {
+            score = 0;
+            comboCount = 0;
+            lastChar = null;
+            numbers = [];
+            difficulty = 1;
+            slowTimeFactor = 1.0;
+            spawnTimer = 0;
+            noInputTimer = 0;
+            isPaused = false;
+            scoreEl.innerText = '0';
+            comboEl.innerText = '0';
+            overlay.style.display = 'none';
+            backToTitleBtn.style.display = 'none';
+            wrapper.classList.remove('slow-mode');
+            wrapper.style.borderColor = '#334155';
+            gameActive = true;
+            
+            pauseBtn.innerText = "PAUSE";
+            pauseBtn.classList.remove('key-pause-active');
+            retryBtn.classList.add('opacity-30', 'cursor-not-allowed');
+
+            resize();
+            for(let i=0; i<3; i++) spawnNumber();
+        }
+
+        function update() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            if (gameActive && !isPaused) {
+                difficulty += SPEED_INCREMENT;
+                spawnTimer++;
+                
+                // 3秒操作なしで追加するためのタイマー（60FPS想定）
+                // ただしスロー時はこのタイマーも影響を受けるべきか？
+                // 救済措置なので、スローの影響を受けない実時間に近いほうが良いためそのまま加算
+                noInputTimer++;
+
+                const spawnRate = Math.max(45, (110 - (difficulty * 2)) / slowTimeFactor);
+                const maxNumbers = comboCount >= 4 ? 8 : 5;
+                
+                // 通常のスポーン判定
+                if (numbers.length < maxNumbers || spawnTimer > spawnRate) {
+                    if (numbers.length < maxNumbers) {
+                        spawnNumber();
+                    }
+                    spawnTimer = 0;
+                }
+
+                // 【追加】8個以上の時に3秒（180フレーム）操作がなければさらに追加
+                if (numbers.length >= 8 && noInputTimer >= 180) {
+                    spawnNumber();
+                    noInputTimer = 0; // 追加したらタイマーリセット（次の3秒へ）
+                }
+            }
+
+            for (let i = numbers.length - 1; i >= 0; i--) {
+                numbers[i].update();
+                numbers[i].draw();
+            }
+
+            requestAnimationFrame(update);
+        }
+
+        startBtn.addEventListener('click', () => {
+            if (gameActive && isPaused) {
+                togglePause();
+            } else {
+                resetGame();
+            }
+        });
+
+        backToTitleBtn.addEventListener('click', showTitleScreen);
+
+        window.addEventListener('keydown', (e) => {
+            if (e.key === "p" || e.key === "Escape" || e.key === " ") {
+                if (e.key === " ") e.preventDefault();
+                togglePause();
+            }
+            if (e.key === "r" && (isPaused || !gameActive)) {
+                handleRetry();
+            }
+            handleInput(e.key);
+        });
+
+        requestAnimationFrame(update);
+    </script>
+</body>
+</html>
