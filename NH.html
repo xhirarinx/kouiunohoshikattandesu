@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Number Combo Typer - High Risk High Return</title>
+    <title>Number Combo Typer - Advanced Layout</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@700&display=swap');
@@ -25,21 +25,11 @@
 
         #game-wrapper {
             position: relative;
-            width: 95vw;
-            height: 55vh; 
-            max-width: 600px;
-            max-height: 800px;
+            width: 100vw;
+            flex-grow: 1;
             background: #1e293b;
-            border: 4px solid #334155;
-            border-radius: 20px;
             overflow: hidden;
-            box-shadow: 0 0 50px rgba(0,0,0,0.5);
             transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-
-        #game-wrapper.full-screen {
-            height: 85vh;
-            max-height: 90vh;
         }
 
         canvas {
@@ -60,63 +50,66 @@
         }
 
         .stats-card {
-            background: rgba(15, 23, 42, 0.6);
-            backdrop-filter: blur(2px);
-            padding: 6px 12px;
+            background: rgba(15, 23, 42, 0.7);
+            backdrop-filter: blur(4px);
+            padding: 8px 16px;
             border-radius: 12px;
-            border: 1px solid rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.1);
         }
 
         #combo-display {
             position: absolute;
-            top: 40%;
+            top: 30%;
             left: 50%;
             transform: translate(-50%, -50%);
-            font-size: 2.5rem;
+            font-size: 3rem;
             opacity: 0;
             transition: all 0.2s ease-out;
             color: #38bdf8;
-            text-shadow: 0 0 20px rgba(56, 189, 248, 0.5);
+            text-shadow: 0 0 20px rgba(56, 189, 248, 0.8);
             pointer-events: none;
             z-index: 10;
         }
 
         .combo-active {
-            opacity: 0.5 !important;
+            opacity: 0.6 !important;
             transform: translate(-50%, -50%) scale(1.1) !important;
         }
 
         #keypad-container {
+            width: 100vw;
+            background: #0f172a;
+            padding: 8px 5px env(safe-area-inset-bottom);
+            border-top: 2px solid #334155;
+            z-index: 20;
             display: flex;
             flex-direction: column;
             align-items: center;
-            transition: all 0.3s ease;
+            transition: transform 0.3s ease-in-out;
+        }
+
+        #keypad-container.hidden-keypad {
+            display: none;
         }
 
         #keypad {
             display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 8px;
-            width: 90vw;
-            max-width: 280px;
-            margin-top: 10px;
-            padding: 5px;
-            z-index: 20;
-        }
-
-        .hidden-keypad {
-            display: none !important;
+            grid-template-columns: 1.5fr repeat(10, 1fr) 1.5fr;
+            gap: 4px;
+            width: 100%;
+            max-width: 900px;
+            margin-bottom: 5px;
         }
 
         .key {
             background: rgba(51, 65, 85, 0.8);
             border: 1px solid rgba(255,255,255,0.1);
-            border-radius: 10px;
-            height: 45px;
+            border-radius: 8px;
+            height: 50px;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 1.2rem;
+            font-size: 1.1rem;
             font-weight: bold;
             color: #f8fafc;
             cursor: pointer;
@@ -128,28 +121,37 @@
         .key:active {
             background: #38bdf8;
             color: #0f172a;
-            transform: scale(0.92);
+            transform: scale(0.9);
         }
 
         .key-control {
-            font-size: 0.8rem;
-            background: rgba(30, 41, 59, 0.9);
+            font-size: 0.7rem;
+            background: rgba(30, 41, 59, 1);
             color: #94a3b8;
         }
 
-        #toggle-keypad-btn {
-            margin-top: 10px;
-            font-size: 0.75rem;
+        #toggle-visibility-wrapper {
+            width: 100%;
+            display: flex;
+            justify-content: center;
+            padding: 4px 0;
+            background: #0f172a;
+        }
+
+        #toggle-visibility-btn {
+            font-size: 11px;
             color: #64748b;
-            text-decoration: underline;
             cursor: pointer;
-            padding: 5px;
+            text-decoration: underline;
+            background: none;
+            border: none;
+            padding: 5px 10px;
         }
 
         #overlay {
             position: absolute;
             inset: 0;
-            background: rgba(15, 23, 42, 0.95);
+            background: rgba(15, 23, 42, 0.9);
             display: flex;
             flex-direction: column;
             align-items: center;
@@ -162,32 +164,18 @@
         .btn {
             background: #38bdf8;
             color: #0f172a;
-            padding: 10px 25px;
+            padding: 12px 30px;
             border-radius: 9999px;
             font-weight: bold;
-            font-size: 1rem;
+            font-size: 1.1rem;
             cursor: pointer;
             transition: all 0.2s;
             border: none;
-            margin-top: 10px;
-        }
-
-        .btn-outline {
-            background: transparent;
-            border: 2px solid #38bdf8;
-            color: #38bdf8;
-        }
-
-        .particle {
-            position: absolute;
-            pointer-events: none;
-            border-radius: 50%;
-            z-index: 100;
+            margin-top: 15px;
         }
 
         .slow-mode {
-            border-color: #38bdf8 !important;
-            box-shadow: 0 0 15px rgba(56, 189, 248, 0.2) inset;
+            box-shadow: 0 0 30px rgba(56, 189, 248, 0.3) inset;
         }
     </style>
 </head>
@@ -196,12 +184,12 @@
     <div id="game-wrapper">
         <div id="ui-layer">
             <div class="stats-card">
-                <div class="text-[9px] opacity-70 leading-tight">SCORE</div>
-                <div id="score" class="text-lg font-bold text-sky-400 leading-none">0</div>
+                <div class="text-[10px] opacity-70 leading-tight">SCORE</div>
+                <div id="score" class="text-xl font-bold text-sky-400 leading-none">0</div>
             </div>
             <div class="stats-card text-right">
-                <div class="text-[9px] opacity-70 leading-tight">COMBO</div>
-                <div id="current-combo" class="text-lg font-bold text-yellow-400 leading-none">0</div>
+                <div class="text-[10px] opacity-70 leading-tight">COMBO</div>
+                <div id="current-combo" class="text-xl font-bold text-yellow-400 leading-none">0</div>
             </div>
         </div>
 
@@ -210,25 +198,23 @@
         <canvas id="gameCanvas"></canvas>
 
         <div id="overlay">
-            <h1 id="overlay-title" class="text-2xl font-extrabold mb-1 text-white italic">NUMBER COMBO</h1>
-            
-            <div id="best-score-container" class="mb-2 text-yellow-400 font-bold text-sm">
+            <h1 id="overlay-title" class="text-3xl font-extrabold mb-2 text-white italic tracking-tighter">NUMBER COMBO</h1>
+            <div id="best-score-container" class="mb-4 text-yellow-400 font-bold text-lg">
                 BEST: <span id="best-score">0</span>
             </div>
-
-            <p id="message" class="text-xs opacity-80 mb-3 leading-relaxed">
+            <p id="message" class="text-sm opacity-80 mb-6 leading-relaxed">
                 同じ数字を連続で打ってコンボ！<br>
-                Spaceキーで一時停止できます
-            </p>
-            <div id="overlay-buttons" class="flex flex-col gap-2">
+                </p>
+            <div id="overlay-buttons" class="flex flex-col gap-3">
                 <button id="startBtn" class="btn">START GAME</button>
-                <button id="backToTitleBtn" class="btn btn-outline" style="display: none;">TITLE</button>
+                <button id="backToTitleBtn" class="btn bg-transparent border-2 border-slate-500 text-slate-300" style="display: none;">TITLE</button>
             </div>
         </div>
     </div>
 
     <div id="keypad-container">
         <div id="keypad">
+            <div id="pauseBtn" class="key key-control" onclick="togglePause()">PAUSE</div>
             <div class="key" onclick="handleInput('1')">1</div>
             <div class="key" onclick="handleInput('2')">2</div>
             <div class="key" onclick="handleInput('3')">3</div>
@@ -238,12 +224,13 @@
             <div class="key" onclick="handleInput('7')">7</div>
             <div class="key" onclick="handleInput('8')">8</div>
             <div class="key" onclick="handleInput('9')">9</div>
-            
-            <div id="pauseBtn" class="key key-control" onclick="togglePause()">PAUSE</div>
             <div class="key" onclick="handleInput('0')">0</div>
             <div id="retryBtn" class="key key-control opacity-30 cursor-not-allowed" onclick="handleRetry()">RETRY</div>
         </div>
-        <div id="toggle-keypad-btn" onclick="toggleKeypadVisibility()">キーパッドを非表示にする (PC向け)</div>
+    </div>
+    
+    <div id="toggle-visibility-wrapper">
+        <button id="toggle-visibility-btn" onclick="toggleKeypad()">キーパッドを隠す (PCユーザー向け)</button>
     </div>
 
     <script>
@@ -261,8 +248,8 @@
         const messageEl = document.getElementById('message');
         const pauseBtn = document.getElementById('pauseBtn');
         const retryBtn = document.getElementById('retryBtn');
-        const keypad = document.getElementById('keypad');
-        const toggleBtn = document.getElementById('toggle-keypad-btn');
+        const keypadContainer = document.getElementById('keypad-container');
+        const toggleBtn = document.getElementById('toggle-visibility-btn');
 
         let score = 0;
         let comboCount = 0;
@@ -271,12 +258,14 @@
         let gameActive = false;
         let isPaused = false;
         let spawnTimer = 0;
-        let noInputTimer = 0; // 操作なし時間を計測するタイマー
-        let keypadVisible = true;
+        let noInputTimer = 0;
         let bestScore = parseInt(localStorage.getItem('numCombo_bestScore')) || 0;
+        let isKeypadVisible = true;
         
-        const INITIAL_SPEED = 0.45;
-        const SPEED_INCREMENT = 0.00002;
+        const INITIAL_SPEED = 0.5;
+        const SPEED_INCREMENT = 0.00003;
+        const ROTATION_THRESHOLD = 10000;
+        
         let difficulty = 1;
         let slowTimeFactor = 1.0;
 
@@ -289,18 +278,17 @@
             canvas.height = wrapper.clientHeight;
         }
 
-        function toggleKeypadVisibility() {
-            keypadVisible = !keypadVisible;
-            if (keypadVisible) {
-                keypad.classList.remove('hidden-keypad');
-                wrapper.classList.remove('full-screen');
-                toggleBtn.innerText = "キーパッドを非表示にする (PC向け)";
+        function toggleKeypad() {
+            isKeypadVisible = !isKeypadVisible;
+            if (isKeypadVisible) {
+                keypadContainer.classList.remove('hidden-keypad');
+                toggleBtn.innerText = "キーパッドを隠す (PCユーザー向け)";
             } else {
-                keypad.classList.add('hidden-keypad');
-                wrapper.classList.add('full-screen');
-                toggleBtn.innerText = "キーパッドを表示する";
+                keypadContainer.classList.add('hidden-keypad');
+                toggleBtn.innerText = "キーパッドを表示する (モバイル向け)";
             }
-            setTimeout(resize, 310);
+            // リサイズを遅延実行してレイアウト確定後にキャンバスサイズを合わせる
+            setTimeout(resize, 50);
         }
 
         window.addEventListener('resize', resize);
@@ -309,28 +297,44 @@
         class FallingNumber {
             constructor() {
                 this.value = Math.floor(Math.random() * 10).toString();
-                this.size = 28 + Math.random() * 8;
+                this.size = Math.min(canvas.width / 10, 40) + Math.random() * 10;
                 this.x = Math.random() * (canvas.width - this.size * 2) + this.size;
-                this.y = -30;
-                this.baseSpeed = (Math.random() * 0.3 + INITIAL_SPEED);
-                this.color = `hsl(${Math.random() * 360}, 70%, 70%)`;
+                this.y = -50;
+                this.baseSpeed = (Math.random() * 0.4 + INITIAL_SPEED);
+                this.color = `hsl(${Math.random() * 360}, 80%, 70%)`;
+                
+                // 生成時のスコアに基づいて回転を決める
+                this.rotation = score >= ROTATION_THRESHOLD ? (Math.random() - 0.5) * 0.2 : 0;
+                this.angle = 0;
             }
 
             draw() {
-                ctx.fillStyle = this.color;
+                ctx.save();
+                ctx.translate(this.x, this.y);
+                ctx.rotate(this.angle);
+                
                 ctx.font = `bold ${this.size}px 'JetBrains Mono'`;
                 ctx.textAlign = 'center';
-                ctx.shadowBlur = 10;
+                ctx.textBaseline = 'middle';
+
+                ctx.strokeStyle = '#0f172a';
+                ctx.lineWidth = 6;
+                ctx.strokeText(this.value, 0, 0);
+
+                ctx.fillStyle = this.color;
+                ctx.shadowBlur = 15;
                 ctx.shadowColor = this.color;
-                ctx.globalAlpha = 1.0; 
-                ctx.fillText(this.value, this.x, this.y);
-                ctx.shadowBlur = 0;
+                ctx.fillText(this.value, 0, 0);
+                
+                ctx.restore();
             }
 
             update() {
                 if (isPaused) return;
                 this.y += this.baseSpeed * difficulty * slowTimeFactor;
-                if (this.y > canvas.height) {
+                this.angle += this.rotation * slowTimeFactor;
+                
+                if (this.y > canvas.height + this.size) {
                     gameOver();
                 }
             }
@@ -340,41 +344,12 @@
             numbers.push(new FallingNumber());
         }
 
-        function createParticles(x, y, color) {
-            const rect = canvas.getBoundingClientRect();
-            for (let i = 0; i < 6; i++) {
-                const p = document.createElement('div');
-                p.className = 'particle';
-                const size = Math.random() * 4 + 2;
-                p.style.width = `${size}px`;
-                p.style.height = `${size}px`;
-                p.style.background = color;
-                p.style.left = `${rect.left + x}px`;
-                p.style.top = `${rect.top + y}px`;
-                document.body.appendChild(p);
-
-                const angle = Math.random() * Math.PI * 2;
-                const dist = Math.random() * 40 + 10;
-                const destX = Math.cos(angle) * dist;
-                const destY = Math.sin(angle) * dist;
-
-                p.animate([
-                    { transform: 'translate(0, 0) scale(1)', opacity: 1 },
-                    { transform: `translate(${destX}px, ${destY}px) scale(0)`, opacity: 0 }
-                ], {
-                    duration: 400,
-                    easing: 'ease-out'
-                }).onfinish = () => p.remove();
-            }
-        }
-
         function togglePause() {
             if (!gameActive) return;
             isPaused = !isPaused;
             
             if (isPaused) {
                 pauseBtn.innerText = "RESUME";
-                pauseBtn.classList.add('key-pause-active');
                 retryBtn.classList.remove('opacity-30', 'cursor-not-allowed');
                 overlay.style.display = 'flex';
                 overlayTitle.innerText = "PAUSED";
@@ -382,7 +357,6 @@
                 backToTitleBtn.style.display = 'block';
             } else {
                 pauseBtn.innerText = "PAUSE";
-                pauseBtn.classList.remove('key-pause-active');
                 retryBtn.classList.add('opacity-30', 'cursor-not-allowed');
                 overlay.style.display = 'none';
                 backToTitleBtn.style.display = 'none';
@@ -403,8 +377,6 @@
 
             if (targetIndex !== -1) {
                 const target = numbers[targetIndex];
-                
-                // 操作があったのでタイマーリセット
                 noInputTimer = 0;
 
                 if (key === lastChar) {
@@ -421,9 +393,8 @@
                 comboEl.innerText = comboCount;
                 
                 if (comboCount >= 2) {
-                    slowTimeFactor = Math.max(0.4, 1.1 - (comboCount * 0.15));
+                    slowTimeFactor = Math.max(0.35, 1.1 - (comboCount * 0.15));
                     wrapper.classList.add('slow-mode');
-                    
                     comboDisplay.innerText = `${comboCount} COMBO`;
                     comboDisplay.classList.add('combo-active');
                     setTimeout(() => comboDisplay.classList.remove('combo-active'), 300);
@@ -431,8 +402,6 @@
                     slowTimeFactor = 1.0;
                     wrapper.classList.remove('slow-mode');
                 }
-
-                createParticles(target.x, target.y, target.color);
                 numbers.splice(targetIndex, 1);
             } else {
                 score = Math.max(0, score - 20);
@@ -441,12 +410,7 @@
                 comboEl.innerText = comboCount;
                 lastChar = null;
                 slowTimeFactor = 1.0;
-                
                 wrapper.classList.remove('slow-mode');
-                wrapper.style.borderColor = '#ef4444';
-                setTimeout(() => {
-                    if (gameActive && !isPaused && comboCount < 2) wrapper.style.borderColor = '#334155';
-                }, 150);
             }
         }
 
@@ -461,16 +425,13 @@
                 bestScore = score;
                 localStorage.setItem('numCombo_bestScore', bestScore);
                 bestScoreEl.innerText = bestScore.toLocaleString();
-                messageEl.innerHTML = `<span class="text-yellow-400 font-bold">NEW BEST SCORE!</span><br>スコア: ${score.toLocaleString()}`;
+                messageEl.innerHTML = `<span class="text-yellow-400 font-bold text-xl">NEW BEST!</span><br>スコア: ${score.toLocaleString()}`;
             } else {
                 messageEl.innerHTML = `スコア: ${score.toLocaleString()}<br>コンボを繋いでハイスコア！`;
             }
 
             startBtn.innerText = 'PLAY AGAIN';
             backToTitleBtn.style.display = 'block';
-            
-            pauseBtn.innerText = "PAUSE";
-            pauseBtn.classList.remove('key-pause-active');
             retryBtn.classList.remove('opacity-30', 'cursor-not-allowed');
         }
 
@@ -482,20 +443,13 @@
             comboCount = 0;
             scoreEl.innerText = '0';
             comboEl.innerText = '0';
-            bestScoreEl.innerText = bestScore.toLocaleString();
             wrapper.classList.remove('slow-mode');
-            wrapper.style.borderColor = '#334155';
-            
             overlay.style.display = 'flex';
             overlayTitle.innerText = "NUMBER COMBO";
-            messageEl.innerHTML = `同じ数字を連続で打ってコンボ！<br>Spaceキーで一時停止できます`;
+            messageEl.innerHTML = `同じ数字を連続で打ってコンボ！<br>10,000点を超えると数字が回転し始める...`;
             startBtn.innerText = 'START GAME';
             backToTitleBtn.style.display = 'none';
-
-            pauseBtn.innerText = "PAUSE";
-            pauseBtn.classList.remove('key-pause-active');
             retryBtn.classList.add('opacity-30', 'cursor-not-allowed');
-            
             ctx.clearRect(0, 0, canvas.width, canvas.height);
         }
 
@@ -514,11 +468,7 @@
             overlay.style.display = 'none';
             backToTitleBtn.style.display = 'none';
             wrapper.classList.remove('slow-mode');
-            wrapper.style.borderColor = '#334155';
             gameActive = true;
-            
-            pauseBtn.innerText = "PAUSE";
-            pauseBtn.classList.remove('key-pause-active');
             retryBtn.classList.add('opacity-30', 'cursor-not-allowed');
 
             resize();
@@ -531,16 +481,11 @@
             if (gameActive && !isPaused) {
                 difficulty += SPEED_INCREMENT;
                 spawnTimer++;
-                
-                // 3秒操作なしで追加するためのタイマー（60FPS想定）
-                // ただしスロー時はこのタイマーも影響を受けるべきか？
-                // 救済措置なので、スローの影響を受けない実時間に近いほうが良いためそのまま加算
                 noInputTimer++;
 
-                const spawnRate = Math.max(45, (110 - (difficulty * 2)) / slowTimeFactor);
+                const spawnRate = Math.max(40, (100 - (difficulty * 3)) / slowTimeFactor);
                 const maxNumbers = comboCount >= 4 ? 8 : 5;
                 
-                // 通常のスポーン判定
                 if (numbers.length < maxNumbers || spawnTimer > spawnRate) {
                     if (numbers.length < maxNumbers) {
                         spawnNumber();
@@ -548,10 +493,9 @@
                     spawnTimer = 0;
                 }
 
-                // 【追加】8個以上の時に3秒（180フレーム）操作がなければさらに追加
                 if (numbers.length >= 8 && noInputTimer >= 180) {
                     spawnNumber();
-                    noInputTimer = 0; // 追加したらタイマーリセット（次の3秒へ）
+                    noInputTimer = 0;
                 }
             }
 
